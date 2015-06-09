@@ -107,8 +107,21 @@ Qed.
 Theorem andb_true_elim2 : forall b c : bool,
   andb b c = true -> c = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros b.
+  destruct b.
+  Case "b = true".
+    intros.
+    rewrite <- H.
+    reflexivity.
+  Case "b = false".
+    simpl.
+    intros.
+    destruct c.
+    SCase "c = true".
+      reflexivity.
+    SCase "c = false".
+      apply H.
+Qed.
 
 (** There are no hard and fast rules for how proofs should be
     formatted in Coq -- in particular, where lines should be broken
@@ -224,24 +237,46 @@ Proof.
 Theorem mult_0_r : forall n:nat,
   n * 0 = 0.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n'].
+  Case "n = 0".
+    reflexivity.
+  Case "n = S n'".
+    simpl. rewrite -> IHn'. reflexivity.
+Qed.
 
 Theorem plus_n_Sm : forall n m : nat, 
   S (n + m) = n + (S m).
-Proof. 
-  (* FILL IN HERE *) Admitted.
-
+Proof.
+  intros. induction n as [| n'].
+  Case "n = 0".
+    reflexivity.
+  Case "n = S n'".
+    simpl. rewrite -> IHn'. reflexivity.
+Qed.
 
 Theorem plus_comm : forall n m : nat,
   n + m = m + n.
 Proof.
-  (* FILL IN HERE *) Admitted.
-
+  intros. induction n as [| n'].
+  Case "n = 0".
+    rewrite -> plus_0_r. reflexivity.
+  Case "n = S n'".
+    simpl.
+    rewrite -> IHn'.
+    rewrite -> plus_n_Sm.
+    reflexivity.
+Qed.
 
 Theorem plus_assoc : forall n m p : nat,
   n + (m + p) = (n + m) + p.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. induction n as [| n'].
+  Case "n = 0".
+    reflexivity.
+  Case "n = S n'".
+    simpl. rewrite -> IHn'. reflexivity.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars (double_plus)  *)
@@ -257,18 +292,30 @@ Fixpoint double (n:nat) :=
 (** Use induction to prove this simple fact about [double]: *)
 
 Lemma double_plus : forall n, double n = n + n .
-Proof.  
-  (* FILL IN HERE *) Admitted.
+Proof.
+  intros. induction n as [| n'].
+  Case "n = 0".
+    reflexivity.
+  Case "n = S n'".
+    rewrite <- plus_n_Sm.
+    simpl.
+    rewrite -> IHn'.
+    reflexivity.
+Qed.
+
 (** [] *)
 
 
 (** **** Exercise: 1 star (destruct_induction)  *)
 (** Briefly explain the difference between the tactics
-    [destruct] and [induction].  
+    [destruct] and [induction].*)
 
-(* FILL IN HERE *)
+(* Destruct simply splits the current goal into sub-goals
+ * for each variant of a data-type, wheras induction creates sub-goals
+ * for a base case and a inductive case, such that the original goal is true
+ * by induction.
+ *)
 
-*)
 (** [] *)
 
 
@@ -356,7 +403,19 @@ Proof.
 Theorem plus_swap : forall n m p : nat, 
   n + (m + p) = m + (n + p).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  assert (H1: n + (m + p) = (n + m) + p).
+    Case "Proof of H1". rewrite -> plus_assoc. reflexivity.
+  assert (H2: m + (n + p) = (n + m) + p).
+    Case "Proof of H2".
+    rewrite -> plus_assoc.
+    assert (H2': (m + n) = (n + m)).
+      SCase "Proof of H2'". rewrite -> plus_comm. reflexivity.
+    rewrite -> H2'.
+    reflexivity.
+  rewrite -> H1. rewrite -> H2.
+  reflexivity.
+Qed.
 
 
 (** Now prove commutativity of multiplication.  (You will probably
@@ -364,20 +423,67 @@ Proof.
     in the proof of this one.)  You may find that [plus_swap] comes in
     handy. *)
 
+Theorem mult_comm' : forall m n : nat,
+ m + m * n = m * S n.
+Proof.
+  intros.
+  induction m as [|m'].
+  Case "m = 0".
+    reflexivity.
+  Case "m = S m'".
+    simpl.
+    rewrite -> plus_swap.
+    rewrite -> IHm'.
+    reflexivity.
+Qed.
+
 Theorem mult_comm : forall m n : nat,
  m * n = n * m.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros n m.
+  induction n as [|n'].
+  Case "n = 0".
+    simpl. rewrite mult_0_r. reflexivity.
+  Case "n = S n'".
+    simpl.
+    rewrite -> IHn'.
+    apply mult_comm'.
+Qed.
 
 (** **** Exercise: 2 stars, optional (evenb_n__oddb_Sn)  *)
 
 (** Prove the following simple fact: *)
 
+Theorem evenb_SSn_negb : forall m : nat,
+ evenb (S (S m)) = negb (evenb (S (S (S m)))).
+Proof.
+  intros.
+  simpl.
+  induction m as [|m'].
+  Case "m = 0".
+    reflexivity.
+  Case "m = S m'".
+    simpl.
+    rewrite -> IHm'.
+    rewrite -> negb_involutive.
+    reflexivity.
+Qed.
+
 Theorem evenb_n__oddb_Sn : forall n : nat,
   evenb n = negb (evenb (S n)).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  destruct n as [|n'].
+  Case "n = 0".
+    reflexivity.
+  Case "n = S n'".
+    destruct n' as [|n''].
+    SCase "n' = 0".
+      reflexivity.
+    SCase "n' = S n''".
+      apply evenb_SSn_negb.
+Qed.
+
 (** [] *)
 
 (* ###################################################################### *)
