@@ -804,7 +804,6 @@ Proof.
   Case "l = m :: l'".
     simpl.
     rewrite -> IHl'.
-    simpl.
     reflexivity.
 Qed.
 
