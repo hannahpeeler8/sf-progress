@@ -99,7 +99,7 @@ Qed.
 ]] 
     mean? *)
 
-(* FILL IN HERE *)
+(* There exists a value n of type nat such that the successor of n is beautiful. *)
 
 (*
 *)
@@ -109,8 +109,14 @@ Qed.
 
 Theorem dist_not_exists : forall (X:Type) (P : X -> Prop),
   (forall x, P x) -> ~ (exists x, ~ P x).
-Proof. 
-  (* FILL IN HERE *) Admitted.
+Proof.
+   unfold not.
+   intros.
+   inversion H0.
+   apply H1.
+   apply H.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, optional (not_exists_dist)  *)
@@ -122,7 +128,18 @@ Theorem not_exists_dist :
   forall (X:Type) (P : X -> Prop),
     ~ (exists x, ~ P x) -> (forall x, P x).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  assert (P x \/ ~ (P x)). apply H.
+  destruct H1 as [PT | PF].
+  Case "P x". apply PT.
+  Case "~ P x".
+    assert False.
+    apply H0.
+    exists x.
+    apply PF.
+    inversion H1.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars (dist_exists_or)  *)
@@ -132,7 +149,19 @@ Proof.
 Theorem dist_exists_or : forall (X:Type) (P Q : X -> Prop),
   (exists x, P x \/ Q x) <-> (exists x, P x) \/ (exists x, Q x).
 Proof.
-   (* FILL IN HERE *) Admitted.
+  intros.
+  unfold iff.
+  split.
+  Case "->".
+    intros. inversion H. destruct H0.
+    left. exists witness. apply H0.
+    right. exists witness. apply H0.
+  Case "<-".
+    intros. destruct H.
+    inversion H. exists witness. left. apply H0.
+    inversion H. exists witness. right. apply H0.
+Qed.
+
 (** [] *)
 
 (* ###################################################### *)
@@ -155,7 +184,6 @@ Inductive sumbool (A B : Prop) : Set :=
  | left : A -> sumbool A B 
  | right : B -> sumbool A B.
 
-Notation "{ A } + { B }" :=  (sumbool A B) : type_scope.
 
 (** Think of [sumbool] as being like the [boolean] type, but instead
     of its values being just [true] and [false], they carry _evidence_
@@ -235,7 +263,13 @@ Proof.
 Theorem override_shadow' : forall (X:Type) x1 x2 k1 k2 (f : nat->X),
   (override' (override' f k1 x2) k1 x1) k2 = (override' f k1 x1) k2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  unfold override'.
+  destruct (eq_nat_dec k1 k2).
+  Case "k1 = k2". reflexivity.
+  Case "k1 <> = k2". reflexivity.
+Qed.
+
 (** [] *)
 
 
@@ -251,8 +285,8 @@ Proof.
     asserts that [P] is true for every element of the list [l]. *)
 
 Inductive all (X : Type) (P : X -> Prop) : list X -> Prop :=
-  (* FILL IN HERE *)
-.
+  | all_nil : all X P []
+  | all_cons : forall h t, P h -> all X P t -> all X P (h :: t).
 
 (** Recall the function [forallb], from the exercise
     [forall_exists_challenge] in chapter [Poly]: *)
@@ -270,7 +304,33 @@ Fixpoint forallb {X : Type} (test : X -> bool) (l : list X) : bool :=
     Are there any important properties of the function [forallb] which
     are not captured by your specification? *)
 
-(* FILL IN HERE *)
+Lemma forallb_spec : forall X (test: X -> bool) (l : list X),
+  forallb test l = true <-> all X (fun x => test x = true) l.
+Proof.
+  intros.
+  split.
+  Case "->".
+    intros.
+    induction l as [|h t].
+    SCase "l = []".
+      apply all_nil.
+    SCase "l = h :: t".
+      simpl in H.
+      apply all_cons.
+      apply andb_true_elim1 in H. apply H.
+      apply IHt. apply andb_true_elim2 in H. apply H.
+  Case "<-".
+    intros.
+    induction l as [|h t].
+    SCase "l = []". reflexivity.
+    SCase "l = h :: t".
+      simpl.
+      inversion H.
+      rewrite H2.
+      apply IHt in H3. rewrite H3.
+      reflexivity.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced (filter_challenge)  *)
@@ -326,18 +386,41 @@ Inductive appears_in {X:Type} (a:X) : list X -> Prop :=
 Lemma appears_in_app : forall (X:Type) (xs ys : list X) (x:X), 
      appears_in x (xs ++ ys) -> appears_in x xs \/ appears_in x ys.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  induction xs as [|hx tx].
+  Case "xs = []".
+    right. apply H.
+  Case "xs = hx :: tx".
+    inversion H.
+    SCase "x = hx".
+      left. apply ai_here.
+    SCase "ai_later".
+      apply IHtx in H1.
+      destruct H1.
+      left. apply ai_later. apply H1.
+      right. apply H1.
+Qed.  
 
 Lemma app_appears_in : forall (X:Type) (xs ys : list X) (x:X), 
      appears_in x xs \/ appears_in x ys -> appears_in x (xs ++ ys).
 Proof.
-  (* FILL IN HERE *) Admitted.
-
+  intros.
+  induction xs as [|hx tx].
+  Case "xs = []". destruct H. inversion H. apply H.
+  Case "xs = hx :: tx".
+    destruct H as [Hxs | Hys].
+    SCase "x in hx :: tx".
+      inversion Hxs.
+      SSCase "ai_here". apply ai_here.
+      SSCase "ai_later". simpl. apply ai_later. apply IHtx. left. apply H0.
+    SCase "x in tx".
+      simpl. apply ai_later. apply IHtx. right. apply Hys.
+Qed.
 
 (** Now use [appears_in] to define a proposition [disjoint X l1 l2],
     which should be provable exactly when [l1] and [l2] are
     lists (with elements of type X) that have no elements in common. *)
-
+(* SKIPPED *)
 (* FILL IN HERE *)
 
 (** Next, use [appears_in] to define an inductive proposition
