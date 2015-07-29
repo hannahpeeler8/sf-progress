@@ -185,7 +185,15 @@ Hint Unfold stuck.
 Example some_term_is_stuck :
   exists t, stuck t.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  exists (tsucc ttrue).
+  split.
+  Case "t can't step".
+    unfold normal_form. unfold not.
+    intros. solve by inversion 3.
+  Case "t isn't a value".
+    unfold not. intros. solve by inversion 3.
+Qed.
+
 (** [] *)
 
 (** However, although values and normal forms are not the same in this
@@ -205,7 +213,21 @@ Proof.
 Lemma value_is_nf : forall t,
   value t -> step_normal_form t.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold normal_form, not.
+  intros.
+  destruct H.
+  Case "bool values".
+    inversion H.
+    SCase "true". inversion H0. subst. inversion H2.
+    SCase "false". inversion H0. subst. inversion H2.
+  Case "numeric values".
+    induction H.
+    SCase "zero". inversion H0. inversion H.
+    SCase "succ".
+      apply IHnvalue.
+      inversion H0. inversion H1. exists t1'. apply H3.
+Qed.
+
 (** [] *)
 
 
@@ -213,10 +235,73 @@ Proof.
 (** Using [value_is_nf], we can show that the [step] relation is
     also deterministic... *)
 
+Theorem nvalue_step_contra : forall v v', nvalue v -> v ==> v' -> False.
+Proof.
+  intros v v' Nv Stv.
+  assert (value v) as Vv. auto.
+  apply value_is_nf in Vv. unfold normal_form, not in Vv.
+  apply Vv.
+  exists v'.
+  assumption.
+Qed.
+
 Theorem step_deterministic:
   deterministic step.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  unfold deterministic.
+  intros x y1 y2 Hy1 Hy2.
+  generalize dependent y2.
+  step_cases (induction Hy1) Case; subst; intros.
+  Case "ST_IfTrue".
+    inversion Hy2. reflexivity. solve by inversion.
+  Case "ST_IfFalse".
+    inversion Hy2. reflexivity. solve by inversion.
+  Case "ST_If".
+    inversion Hy2; try (subst; solve by inversion).
+    subst.
+    assert (t1' = t1'0). auto.
+    rewrite H. reflexivity.
+  Case "ST_Succ".
+    inversion Hy2. apply f_equal. apply IHHy1. assumption.
+  Case "ST_PredZero".
+    inversion Hy2; try reflexivity.
+    solve by inversion.
+  Case "ST_PredSucc".
+    inversion Hy2; try reflexivity.
+    subst. inversion H1. subst.
+    assert False.
+      apply nvalue_step_contra with (v := t1) (v' := t1'0); assumption.
+    solve by inversion.
+  Case "ST_Pred".
+    inversion Hy2; subst.
+    SCase "ST_PredZero". solve by inversion.
+    SCase "ST_PredSucc".
+      inversion Hy1; subst; try reflexivity.
+      assert False.
+        apply nvalue_step_contra with (v := y2) (v' := t1'0); assumption.
+      solve by inversion.
+    SCase "ST_Pred". auto using f_equal.
+  Case "ST_IszeroZero".
+    inversion Hy2. reflexivity. solve by inversion.
+  Case "ST_IszeroSucc".
+    inversion Hy2; try reflexivity.
+    inversion H1. subst.
+    assert False.
+      apply nvalue_step_contra with (v := t1) (v' := t1'0); assumption.
+    solve by inversion.
+  Case "ST_Iszero".
+    inversion Hy2; subst.
+    SCase "ST_IszeroZero". solve by inversion.
+    SCase "ST_IszeroSucc".
+      inversion Hy1. subst.
+      assert False.
+        apply nvalue_step_contra with (v := t0) (v' := t1'0); assumption.
+      solve by inversion.
+    SSCase "ST_Iszero". auto using f_equal.
+Qed.
+
+(* NB: Could prove a lemma/write a tactic for tsucc t1 ==> t1' where nvalue t1. *)
+
 (** [] *)
 
 
@@ -311,11 +396,11 @@ Hint Constructors has_type.
 Example has_type_1 : 
   |- tif tfalse tzero (tsucc tzero) \in TNat.
 Proof. 
-  apply T_If. 
+  apply T_If.
     apply T_False.
     apply T_Zero.
     apply T_Succ.
-      apply T_Zero.  
+      apply T_Zero.
 Qed.
 
 (** (Since we've included all the constructors of the typing relation
@@ -332,7 +417,9 @@ Example succ_hastype_nat__hastype_nat : forall t,
   |- tsucc t \in TNat ->
   |- t \in TNat.  
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. inversion H. assumption.
+Qed.
+
 (** [] *)
 
 (* ###################################################################### *)
@@ -356,9 +443,8 @@ Lemma nat_canonical : forall t,
 Proof.
   intros t HT HV.
   inversion HV.
-  inversion H; subst; inversion HT.   
-
-  auto.  
+  inversion H; subst; inversion HT.
+  auto.
 Qed.
 
 (* ###################################################################### *)
@@ -391,7 +477,32 @@ Proof with auto.
     SCase "t1 can take a step".
       inversion H as [t1' H1].
       exists (tif t1' t2 t3)...
-  (* FILL IN HERE *) Admitted.
+  Case "T_Succ".
+    destruct IHHT as [VT | ST].
+    SCase "t1 is a value".
+      apply (nat_canonical t1 HT) in VT.
+      auto using nv_succ.
+    SCase "t1 can step".
+      inversion ST.
+      apply ST_Succ in H.
+      right.
+      exists (tsucc x). assumption.
+  Case "T_Pred".
+    destruct IHHT as [VT | ST].
+    SCase "t1 is a value".
+      apply (nat_canonical t1 HT) in VT.
+      inversion VT; eauto.
+    SCase "t1 can step".
+      inversion ST. eauto.
+  Case "T_Iszero".
+    destruct IHHT as [VT | ST].
+    SCase "t1 is a value".
+      apply (nat_canonical t1 HT) in VT.
+      inversion VT; eauto.
+    SCase "t1 can step".
+      inversion ST; eauto.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced (finish_progress_informal)  *)
@@ -418,7 +529,19 @@ Proof with auto.
             - If [t1] itself can take a step, then, by [ST_If], so can
               [t].
 
-    (* FILL IN HERE *)
+    - If the last rule in the derivation is [T_Succ], then [t = tsucc t1].
+      By the inductive hypothesis, either [t1] is a value or [t1] can step
+      to some value [t1'].
+
+          - If [t1] is a value, then we have [nvalue t1] by the [nat_canonical]
+            lemma and the fact that [|- t1 \in TNat]. Given [nvalue t1] we can
+            deduce [nvalue (succ t1)] and [value (succ t1)] by the [nv_succ]
+            and [value] definitions respectively. Hence [t] is a value.
+
+          - If [t1 ==> t1'] then the successor of t1 can step, by the [ST_Succ]
+            rule: [succ t1 ==> succ t1']. Hence [t = succ t1] can step.
+
+    - And so on (SKIPPED).
 [] *)
 
 (** This is more interesting than the strong progress theorem that we
@@ -428,14 +551,14 @@ Proof with auto.
 
 (** **** Exercise: 1 star (step_review)  *)
 (** Quick review.  Answer _true_ or _false_.  In this language...
-      - Every well-typed normal form is a value.
+      - Every well-typed normal form is a value. TRUE.
 
-      - Every value is a normal form.
+      - Every value is a normal form. TRUE.
 
       - The single-step evaluation relation is
-        a partial function (i.e., it is deterministic).
+        a partial function (i.e., it is deterministic). TRUE.
 
-      - The single-step evaluation relation is a _total_ function.
+      - The single-step evaluation relation is a _total_ function. FALSE.
 
 *)
 (** [] *)
@@ -476,7 +599,15 @@ Proof with auto.
       SCase "ST_IfFalse". assumption.
       SCase "ST_If". apply T_If; try assumption.
         apply IHHT1; assumption.
-    (* FILL IN HERE *) Admitted.
+    Case "T_Succ".
+      inversion HE. subst. eauto.
+    Case "T_Pred".
+      inversion HE; eauto.
+      subst. inversion HT. assumption.
+    Case "T_Iszero".
+      inversion HE; auto.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced (finish_preservation_informal)  *)
@@ -506,7 +637,7 @@ Proof with auto.
              by the IH, [|- t1' \in Bool].  The [T_If] rule then gives us
              [|- if t1' then t2 else t3 \in T], as required.
 
-    (* FILL IN HERE *)
+    (* SKIPPED *)
 [] *)
 
 (** **** Exercise: 3 stars (preservation_alternate_proof)  *)
@@ -522,7 +653,14 @@ Theorem preservation' : forall t t' T,
   t ==> t' ->
   |- t' \in T.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  intros t t' T HT HS.
+  generalize dependent T.
+  step_cases (induction HS) Case; intros; inversion HT; auto.
+  Case "ST_PredSucc".
+    subst. inversion H1. assumption.
+Qed.
+(* YAY AUTOMATION! *)
+
 (** [] *)
 
 (* ###################################################################### *)
@@ -540,9 +678,11 @@ Corollary soundness : forall t t' T,
   ~(stuck t').
 Proof. 
   intros t t' T HT P. induction P; intros [R S].
-  destruct (progress x T HT); auto.   
-  apply IHP.  apply (preservation x y T HT H).
-  unfold stuck. split; auto.   Qed.
+  Case "x ==> x".
+    destruct (progress x T HT); auto.
+  Case "x ==> y, y ==> z".
+    apply IHP.  apply (preservation x y T HT H).
+    unfold stuck. split; auto.   Qed.
 
 
 (* ###################################################################### *)
@@ -643,7 +783,8 @@ Theorem normalize_ex : exists e',
   (AMult (ANum 3) (AMult (ANum 2) (ANum 1))) / empty_state 
   ==>a* e'.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  eapply ex_intro. normalize.
+Qed.
 
 (** [] *)
 
@@ -654,7 +795,7 @@ Theorem normalize_ex' : exists e',
   (AMult (ANum 3) (AMult (ANum 2) (ANum 1))) / empty_state 
   ==>a* e'.
 Proof.
-  (* FILL IN HERE *) Admitted.
+Admitted.
 (** [] *)
 
 
@@ -668,12 +809,11 @@ Proof.
     and [|- t' \in T], then [|- t \in T]?  If so, prove it.  If
     not, give a counter-example.  (You do not need to prove your
     counter-example in Coq, but feel free to do so if you like.)
-
-    (* FILL IN HERE *)
-[] *)
-
-
-
+**)
+(* FALSE
+tif ttrue tzero tfalse ==> tzero
+tzero is in TBool but the if expression has no type.
+*)
 
 (** **** Exercise: 2 stars (variation1)  *)
 (** Suppose, that we add this new rule to the typing relation: 
@@ -684,21 +824,37 @@ Proof.
    this rule?  For each one, write either "remains true" or
    else "becomes false." If a property becomes false, give a
    counterexample.
-      - Determinism of [step]
+      - Determinism of [step] remains true.
 
-      - Progress
+      - Progress becomes false.
+        Progress requires that well typed terms are either values,
+        or can take a step. With the new typing rule, tsucc ttrue is an example
+        of a well typed term that isn't a value and can't take a step.
 
-      - Preservation
+      - Preservation remains true.
+        The set of terms for which [|- t \in T] and [t ==> t'] remains
+        the same, as the step relation is unchanged. New well-typed
+        terms like [tsucc ttrue] can't step and therefore don't have to be
+        considered in the proof of preservation.
 
 [] *)
 
 (** **** Exercise: 2 stars (variation2)  *)
+Check progress.
+Check preservation.
+
 (** Suppose, instead, that we add this new rule to the [step] relation: 
       | ST_Funny1 : forall t2 t3,
            (tif ttrue t2 t3) ==> t3
    Which of the above properties become false in the presence of
    this rule?  For each one that does, give a counter-example.
 
+    - Determinism of step becomes false.
+      There are two ways to step terms of the form [tif ttrue t2 t3]:
+      tif ttrue t2 t3 ==> t2, by ST_IfTrue
+      tif ttrue t2 t3 ==> t3, by ST_Funny1
+
+    - Progress and preservation remain true.
 [] *)
 
 (** **** Exercise: 2 stars, optional (variation3)  *)
@@ -709,6 +865,12 @@ Proof.
    Which of the above properties become false in the presence of
    this rule?  For each one that does, give a counter-example.
 
+   - Determinism breaks:
+     tif ttrue (tpred tzero) x ==> tpred tzero, by ST_IfTrue
+     tif ttrue (tpred tzero) x ==> tif ttrue tzero x, by ST_Funny2 and ST_IszeroZero.
+
+   - Progress and preservation remain true.
+
 [] *)
 
 (** **** Exercise: 2 stars, optional (variation4)  *)
@@ -717,6 +879,8 @@ Proof.
           (tpred tfalse) ==> (tpred (tpred tfalse))
    Which of the above properties become false in the presence of
    this rule?  For each one that does, give a counter-example.
+
+   SKIPPED
 
 [] *)
 
@@ -729,6 +893,8 @@ Proof.
    Which of the above properties become false in the presence of
    this rule?  For each one that does, give a counter-example.
 
+   SKIPPED
+
 [] *)
 
 (** **** Exercise: 2 stars, optional (variation6)  *)
@@ -739,6 +905,8 @@ Proof.
    ]]
    Which of the above properties become false in the presence of
    this rule?  For each one that does, give a counter-example.
+
+   SKIPPED
 
 [] *)
 
