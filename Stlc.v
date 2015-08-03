@@ -630,9 +630,12 @@ Lemma step_example5 :
        (tapp (tapp idBBBB idBB) idB)
   ==>* idB.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  eapply multi_step.
+  eapply ST_App1. eapply ST_AppAbs. apply v_abs.
+  simpl. eapply multi_step. apply ST_AppAbs. apply v_abs. simpl.
+  apply multi_refl.
+Qed.
 
-(* FILL IN HERE *)
 (** [] *)
 
 (* ###################################################################### *)
@@ -797,7 +800,9 @@ Example typing_example_2_full :
           (tapp (tvar y) (tapp (tvar y) (tvar x))))) \in
     (TArrow TBool (TArrow (TArrow TBool TBool) TBool)).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* SKIPPED *)
+Admitted.
+
 (** [] *)
 
 (** **** Exercise: 2 stars (typing_example_3)  *)
@@ -817,7 +822,14 @@ Example typing_example_3 :
                (tapp (tvar y) (tapp (tvar x) (tvar z)))))) \in
       T.
 Proof with auto.
-  (* FILL IN HERE *) Admitted.
+  exists (TArrow (TArrow TBool TBool)
+          (TArrow (TArrow TBool TBool)
+           (TArrow TBool TBool))).
+  repeat (apply T_Abs).
+  apply T_App with (T11 := TBool)...
+  apply T_App with (T11 := TBool)...
+Qed.
+
 (** [] *)
 
 (** We can also show that terms are _not_ typable.  For example, let's
@@ -852,6 +864,18 @@ Proof.
           empty |- \x:S. x x : T).
 *)
 
+Lemma t_neq_tarrow : forall T1 T2, T1 <> TArrow T1 T2.
+Proof.
+  induction T1.
+  Case "T1 = TBool".
+    intros T2 contra. solve by inversion.
+  Case "T1 = TArrow x y".
+    intros T2 H.
+    inversion H.
+    apply IHT1_1 in H1.
+    assumption.
+Qed.
+
 Example typing_nonexample_3 :
   ~ (exists S, exists T,
         empty |-
@@ -859,10 +883,18 @@ Example typing_nonexample_3 :
              (tapp (tvar x) (tvar x))) \in
           T).
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
-
+  intros H.
+  destruct H as [S H]. destruct H as [T H].
+  inversion H; subst. inversion H5; subst.
+  inversion H3.
+  inversion H6.
+  inversion H9.
+  inversion H2.
+  subst.
+  destruct T11. inversion H13. inversion H13.
+  apply t_neq_tarrow in H1.
+  assumption.
+Qed.
 
 End STLC.
 
