@@ -129,10 +129,32 @@ Qed.
 Theorem progress' : forall t T,
      empty |- t \in T ->
      value t \/ exists t', t ==> t'.
-Proof.
+Proof with eauto.
   intros t.
   t_cases (induction t) Case; intros T Ht; auto.
-  (* FILL IN HERE *) Admitted.
+  Case "tvar".
+    solve by inversion 2.
+  Case "tapp".
+    right. inversion Ht; subst.
+    assert (value t1 \/ exists t', t1 ==> t') as Ht1...
+    assert (value t2 \/ exists t', t2 ==> t') as Ht2...
+    clear IHt1. clear IHt2.
+    destruct Ht1 as [Vt1 | St1].
+    SCase "t1 is a value".
+      destruct Ht2 as [Vt2 | St2].
+      SSCase "t2 is also a value".
+        assert (exists x e, t1 = tabs x T11 e) as Abst1.
+          eauto using canonical_forms_fun.
+        destruct Abst1 as [x [e Abst1]]. subst.
+        exists ([x := t2] e)...
+      SSCase "t2 can step".
+        destruct St2...
+    SCase "t1 can step".
+      destruct St1...
+  Case "tif".
+    admit.
+Qed.
+
 (** [] *)
 
 (* ###################################################################### *)
@@ -281,7 +303,12 @@ Corollary typable_empty__closed : forall t T,
     empty |- t \in T  ->
     closed t.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros t T H.
+  unfold closed. intros x HA.
+  apply free_in_context with (x := x) in H.
+  destruct H. inversion H. assumption.
+Qed.
+
 (** [] *)
 
 (** Sometimes, when we have a proof [Gamma |- t : T], we will need to
@@ -551,7 +578,15 @@ Qed.
     then [empty |- t \in T]?  If so, prove it.  If not, give a
     counter-example not involving conditionals.
 
-(* FILL IN HERE *)
+    No. The [ST_AppAbs] stepping rule breaks subject expansion:
+
+    Example:
+
+      (\x: TBool -> TBool. x) ttrue ==> ttrue
+
+    ttrue has type TBool and is a value, but the function abstraction has type
+    (TBool -> TBool) -> TBool -> TBool.
+
 []
 *)
 
@@ -575,7 +610,12 @@ Proof.
   intros t t' T Hhas_type Hmulti. unfold stuck.
   intros [Hnf Hnot_val]. unfold normal_form in Hnf.
   induction Hmulti.
-  (* FILL IN HERE *) Admitted.
+  Case "t ==> t".
+    destruct (progress x0 T Hhas_type); auto.
+  Case "x0 ==> y0, y0 ==> z0".
+    apply IHHmulti; auto.
+    apply (preservation x0 y0 T); auto.
+Qed.
 
 (* ###################################################################### *)
 (** * Uniqueness of Types *)
@@ -586,7 +626,21 @@ Proof.
     type. *)
 (** Formalize this statement and prove it. *)
 
-(* FILL IN HERE *)
+Lemma types_unique : forall t T U Gamma,
+  Gamma |- t \in T -> Gamma |- t \in U -> T = U.
+Proof with auto.
+  intros t T U Gamma HT HU.
+  generalize dependent U.
+  has_type_cases (induction HT) Case;
+    intros; inversion HU; subst; try auto.
+  Case "T_Var".
+    rewrite H in H2. inversion H2...
+  Case "T_Abs".
+    apply f_equal...
+  Case "T_App".
+    apply IHHT1 in H2. inversion H2...
+Qed.
+
 (** [] *)
 
 (* ###################################################################### *)
@@ -595,6 +649,15 @@ Proof.
 (** **** Exercise: 1 star (progress_preservation_statement)  *)
 (** Without peeking, write down the progress and preservation
     theorems for the simply typed lambda-calculus. *)
+
+Lemma progress_recall : forall t T,
+  \empty |- t \in T -> value t \/ exists t', t ==> t'.
+Proof. apply progress. Qed.
+
+Lemma preservation_recall : forall t t' T,
+  \empty |- t \in T -> t ==> t' -> \empty |- t' \in T.
+Proof. apply preservation. Qed.
+
 (** [] *)
 
 
@@ -611,11 +674,14 @@ and the following typing rule:
     false, give a counterexample.
 
       - Determinism of [step]
+        Becomes false - any term t that could step before can now also step to zap.
 
       - Progress
+        Remains true. Zap terms are always well-typed and can keep stepping zap ==> zap.
 
       - Preservation
-
+        Remains true. If a term of type U steps to zap, then a typing judgement [z \in U]
+        can always be formed by applying [T_Zap]. Note also that zap can only step to zap.
 []
 *)
 
@@ -632,11 +698,23 @@ and the following typing rule:
     false, give a counterexample.
 
       - Determinism of [step]
+        Out the window.
+
+        (\x: A. x) y ==> foo y, by [ST_App1] and [ST_Foo1]
+        (\x: A. x) y ==> x[x:=y] by [ST_AppAbs]
 
       - Progress
+        Remains true. The set of well-typed terms is the same.
 
       - Preservation
+        Becomes false.
 
+        If we have both:
+          \empty |- (\x: A. x) y \in T
+          (\x: A. x) y ==> foo y
+
+        Preservation requires we derive [\empty |- foo t \in T],
+        but this is impossible, as no typing rules mention foo.
 []
 *)
 
