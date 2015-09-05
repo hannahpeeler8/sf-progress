@@ -1000,9 +1000,10 @@ Fixpoint subst (x:id) (s:tm) (t:tm) : tm :=
   | tsnd t1 => 
       tsnd (subst x s t1)
   | tunit => tunit
+  (* This is weird, but follows from considering let as (\y. t2) t1 *)
   | tlet y t1 t2 =>
       if eq_id_dec x y
-      then tlet y t1 t2
+      then tlet y (subst x s t1) t2
       else tlet y (subst x s t1) (subst x s t2)
   | tinl T t1 =>
       tinl T (subst x s t1)
@@ -1918,7 +1919,15 @@ Inductive appears_free_in : id -> tm -> Prop :=
       appears_free_in x t ->
       appears_free_in x (tsnd t)
   (* let *)
-(* FILL IN HERE *)
+  (* This first case is somewhat strange as it permits:
+     let y = y in ... *)
+  | afi_let1 : forall x y t1 t2,
+      appears_free_in x t1 ->
+      appears_free_in x (tlet y t1 t2)
+  | afi_let2 : forall x y t1 t2,
+      x <> y ->
+      appears_free_in x t2 ->
+      appears_free_in x (tlet y t1 t2)
   (* sums *)
   | afi_inl : forall x t T,
       appears_free_in x t ->
@@ -1956,7 +1965,9 @@ Inductive appears_free_in : id -> tm -> Prop :=
      appears_free_in x t3 ->
      appears_free_in x (tlcase t1 t2 y1 y2 t3)
   (* fix *)
-(* FILL IN HERE *)
+  | afi_fix : forall x f,
+     appears_free_in x f ->
+     appears_free_in x (tfix f)
   .
 
 Hint Constructors appears_free_in.
@@ -1972,7 +1983,7 @@ Proof with eauto.
   Case "T_Var".
     apply T_Var... rewrite <- Heqv...
   Case "T_Abs".
-    apply T_Abs... apply IHhas_type. intros y Hafi.
+    apply T_Abs. apply IHhas_type. intros y Hafi.
     unfold extend. 
     destruct (eq_id_dec x y)...
   Case "T_Mult".
@@ -1981,8 +1992,13 @@ Proof with eauto.
     apply T_If0...
   Case "T_Pair". 
     apply T_Pair...
-(* let *)
-(* FILL IN HERE *)
+  (* let *)
+  Case "T_Let".
+    apply T_Let with (T1 := T1)...
+    apply IHhas_type2.
+    intros y AFI.
+    unfold extend.
+    destruct (eq_id_dec x y)...
   Case "T_Case".
     eapply T_Case... 
      apply IHhas_type2. intros y Hafi.
@@ -2011,8 +2027,11 @@ Proof with eauto.
     destruct IHHtyp as [T' Hctx]... exists T'.
     unfold extend in Hctx. 
     rewrite neq_id in Hctx...
-(* let *)
-(* FILL IN HERE *)
+  Case "T_Let".
+    unfold extend in IHHtyp2.
+    destruct (eq_id_dec x0 x)...
+    SCase "x0 = x".
+      apply ex_falso_quodlibet...
   Case "T_Case".
     SCase "left".
       destruct IHHtyp2 as [T' Hctx]... exists T'. 
@@ -2109,8 +2128,24 @@ Proof with eauto.
       intros z Hafi. unfold extend.
       destruct (eq_id_dec y z)...
       subst. rewrite neq_id...
-(* let *)
-(* FILL IN HERE *)
+  Case "tlet".
+    destruct (eq_id_dec x i) as [Eqxi | Neqxi].
+    SCase "x = i".
+      subst i.
+      apply T_Let with (T1 := T1)...
+      apply context_invariance with (Gamma := extend (extend Gamma x U) x T1)...
+      intros y AFI.
+      unfold extend.
+      destruct (eq_id_dec x y); reflexivity.
+    SCase "x <> i".
+      apply T_Let with (T1 := T1)...
+      apply IHt2.
+      apply context_invariance with (Gamma := extend (extend Gamma x U) i T1)...
+      intros y AFI.
+      unfold extend.
+      destruct (eq_id_dec i y); destruct (eq_id_dec x y); try (reflexivity).
+      SSCase "i = y, x = y".
+        subst. apply ex_falso_quodlibet...
   Case "tcase".
     rename i into x1. rename i0 into x2.
     eapply T_Case...
